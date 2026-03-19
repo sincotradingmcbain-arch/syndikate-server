@@ -4,7 +4,9 @@ const http = require('http');
 const PORT = process.env.PORT || 3000;
 const ODDS_API_KEY = process.env.ODDS_API_KEY || '';
 
+// Simple CORS proxy for the-odds-api.com
 const server = http.createServer((req, res) => {
+  // CORS headers — allow requests from anywhere (your claude.ai app)
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -15,12 +17,14 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Health check
   if (req.url === '/' || req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ status: 'ok', service: 'Syndikate Odds Proxy' }));
     return;
   }
 
+  // Only allow /odds/* routes
   if (!req.url.startsWith('/odds/')) {
     res.writeHead(404, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'Not found' }));
@@ -33,8 +37,12 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Strip /odds prefix and forward to the-odds-api.com
   const sportPath = req.url.replace('/odds/', '');
-  const apiUrl = `https://api.the-odds-api.com/v4/sports/${sportPath}&apiKey=${ODDS_API_KEY}`;
+  const separator = sportPath.includes('?') ? '&' : '?';
+  const apiUrl = `https://api.the-odds-api.com/v4/sports/${sportPath}${separator}apiKey=${ODDS_API_KEY}`;
+
+  console.log(`Fetching: ${apiUrl.replace(ODDS_API_KEY, '***')}`);
 
   https.get(apiUrl, (apiRes) => {
     let data = '';
@@ -44,6 +52,7 @@ const server = http.createServer((req, res) => {
       res.end(data);
     });
   }).on('error', (err) => {
+    console.error('Odds API error:', err.message);
     res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: err.message }));
   });
